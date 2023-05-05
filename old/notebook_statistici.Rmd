@@ -1,0 +1,150 @@
+---
+title: "Modularity-Based Consensus Community Detection"
+output: pdf_document
+---
+
+# Modularity-Based Consensus Community Detection on network "test1"
+
+```{r message=FALSE, warning=FALSE}
+library(igraph)
+path <- "./networks/"
+
+#write_graph(updatedgraph_1215, file = "updatedgraph_1215.graphml", format = "graphml")
+#write_graph(updatedgraph_1619, file = "updatedgraph_1619.graphml", format = "graphml")
+
+echo = FALSE # avoid printing intermediate results  
+```
+
+
+```{r message=FALSE, warning=FALSE}
+# repeated Louvain with modified params
+n_trials = 10
+alphas = c(0.3)
+res = c(0.9, 1.0, 1.1)
+epsilon = 1/1000
+
+# pruning
+min_p <- 0.50
+min_vds <- 5
+min_w <- 0.001
+
+# consensus
+reps = 1
+```
+
+
+# updatedgraph 1215
+
+```{r message=FALSE, warning=FALSE}
+filename <- "updatedgraph_1215"
+g <- read_graph(paste0(path,filename, ".graphml"), format = "graphml")
+
+source('source_functions_cons_com_det.r')
+
+write(json_data, file=paste0(filename,"_results.json"))
+```
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+json_data <- fromJSON(paste0(filename,"_results.json"))
+cols_to_extract <- c('method', "a",'rep', 'trial')
+tmp_list <- list()
+nn <- length(cols_to_extract)
+for (i in 1:nn){
+    tmp_list[[i]] <- pluck(json_data, cols_to_extract[i]) 
+}
+df <- data.frame(tmp_list)
+names(df) <- cols_to_extract
+robs <-   pluck(json_data, "rob_mem")
+n_trials = length(robs)
+n_nodes <- 1000
+# extract robustness, which is a list of 1000 where method == CONS
+# and an empty list otherwise
+for (i in 1:n_trials){
+    if (df$method[i] == "CONS"){
+        df$rob[i] <- list(robs[[i]])
+    } else {
+        df$rob[i] <- list(rep(-1, n_nodes))
+    }
+} 
+# identify the node
+df$id <- seq.int(nrow(df))
+df <- df  %>% filter( method == "CONS")
+print(str(df))
+# tidy dataset ready for plotting
+df2 <- df %>%
+    unnest(rob) %>%
+    pivot_longer(cols = c(rob), names_to = 'tmp', values_to = 'rob')  %>% 
+    select(-tmp) %>%  
+    arrange(rep, trial, a, method, id,   rob)
+
+ 
+df2  %>% ggplot( aes(x = rob)) +
+    facet_grid(cols = vars(a)) +
+        geom_density( adjust = 3,  color = "red") +
+        geom_histogram(aes(y = ..density..),
+                 position = "identity",
+                 alpha = 0.5) +
+                labs(title = "Robust Histogram",
+                    x = "Robustness of membership",
+                    y = "Percentage") 
+ 
+```
+# updatedgraph 1619
+
+```{r message=FALSE, warning=FALSE}
+filename <- "updatedgraph_1619"
+g <- read_graph(paste0(path,filename, ".graphml"), format = "graphml")
+
+source('source_functions_cons_com_det.r')
+
+write(json_data, file=paste0(filename,"_results.json"))
+```
+
+Plot
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+json_data <- fromJSON(paste0(filename,"_results.json"))
+cols_to_extract <- c('method', "a",'rep', 'trial')
+tmp_list <- list()
+nn <- length(cols_to_extract)
+for (i in 1:nn){
+    tmp_list[[i]] <- pluck(json_data, cols_to_extract[i]) 
+}
+df <- data.frame(tmp_list)
+names(df) <- cols_to_extract
+robs <-   pluck(json_data, "rob_mem")
+n_trials = length(robs)
+n_nodes <- 1000
+# extract robustness, which is a list of 1000 where method == CONS
+# and an empty list otherwise
+for (i in 1:n_trials){
+    if (df$method[i] == "CONS"){
+        df$rob[i] <- list(robs[[i]])
+    } else {
+        df$rob[i] <- list(rep(-1, n_nodes))
+    }
+} 
+# identify the node
+df$id <- seq.int(nrow(df))
+df <- df  %>% filter( method == "CONS")
+print(str(df))
+# tidy dataset ready for plotting
+df2 <- df %>%
+    unnest(rob) %>%
+    pivot_longer(cols = c(rob), names_to = 'tmp', values_to = 'rob')  %>% 
+    select(-tmp) %>%  
+    arrange(rep, trial, a, method, id,   rob)
+
+ 
+df2  %>% ggplot( aes(x = rob)) +
+    facet_grid(cols = vars(a)) +
+        geom_density( adjust = 3,  color = "red") +
+        geom_histogram(aes(y = ..density..),
+                 position = "identity",
+                 alpha = 0.5) +
+                labs(title = "Robust Histogram",
+                    x = "Robustness of membership",
+                    y = "Percentage") 
+ 
+```
+

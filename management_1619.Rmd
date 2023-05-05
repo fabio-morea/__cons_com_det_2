@@ -1,0 +1,148 @@
+---
+title: "Modularity-Based Consensus Community Detection"
+output: pdf_document
+---
+
+```{r eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+# load data and save to igraph format
+#write_graph(management_1115, file = "management_1115.graphml", format = "graphml")
+#write_graph(management_1619, file = "management_1619.graphml", format = "graphml")
+```
+
+
+```{r}
+filename <- "management_1619"  
+```
+
+
+
+# Modularity-Based Consensus Community Detection
+# on network `r filename`
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+library(igraph)
+source('source_functions_cons_com_det.r')
+```
+
+
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+
+path <- "./networks/" 
+echo = FALSE # FALSE to avoid printing intermediate results  
+
+# parameters for consensus community detection
+n_trials = 10
+alphas = c(0.0, 0.05, 0.1)
+res = c(0.9, 1.0, 1.1)
+epsilon = 1/100
+
+# pruning
+min_p <- 0.50
+min_vds <- 5
+min_w <- 0.01
+
+# consensus
+reps = 10
+
+```
+
+```{r}
+load_network <- function(path, filename) {
+  fn <- paste0(path,filename, ".graphml")
+  print(paste("Loading", fn, "..."))
+  g <- read_graph(fn, format = "graphml")
+  E(g)$ww <- E(g)$weight
+  V(g)$str <- strength(g)
+  V(g)$name <- paste0("V" , V(g)$name)
+  degrees <- degree(g)
+  kcore <- coreness(g)
+  print(paste("Number of nodes:", length(V(g)$name)))
+  print(paste("Number of edges:", length(E(g)$weight)))
+  print(paste("Mean degree:", mean(degrees)))
+  print(paste("Max k-coreness: ", max(kcore)))
+  return(g)
+}
+```
+
+# analysis of management 11 15
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+
+g <- load_network(path, filename)
+ 
+```
+
+```{r}
+
+dfresults <- consensus_community_detection(g, 
+                                           alphas, reps, n_trials, 
+                                           epsilon, res, min_p, min_vds, min_w, 
+                                           echo = FALSE) 
+json_data <- toJSON(dfresults)
+write(json_data, file=paste0(filename,"_results.json"))
+print("Completed.")
+```
+
+
+```{r}
+
+ 
+dfresults  %>% filter(method == "LV") %>% 
+  ggplot( aes(x = modularit, y =  nc , group = a)) +
+  facet_grid(cols = vars(a)) +
+  geom_line() + 
+  geom_point() + 
+   labs(title = "numbero of communities for alpha = (0.0 ,  0.1 , 0.2)",
+   x = "modularity",
+   y = "number of communities") 
+ 
+```
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+json_data <- fromJSON(paste0(filename,"_results.json"))
+cols_to_extract <- c('method', "a",'rep', 'trial')
+tmp_list <- list()
+nn <- length(cols_to_extract)
+for (i in 1:nn){
+    tmp_list[[i]] <- pluck(json_data, cols_to_extract[i]) 
+}
+df <- data.frame(tmp_list)
+names(df) <- cols_to_extract
+robs <-   pluck(json_data, "rob_mem")
+n_trials = length(robs)
+n_nodes <- 1000
+# extract robustness, which is a list of 1000 where method == CONS
+# and an empty list otherwise
+for (i in 1:n_trials){
+    if (df$method[i] == "CONS"){
+        df$rob[i] <- list(robs[[i]])
+    } else {
+        df$rob[i] <- list(rep(-1, n_nodes))
+    }
+} 
+# identify the node
+df$id <- seq.int(nrow(df))
+df <- df  %>% filter( method == "CONS")
+
+# tidy dataset ready for plotting
+df2 <- df %>%
+    unnest(rob) %>%
+    pivot_longer(cols = c(rob), names_to = 'tmp', values_to = 'rob')  %>% 
+    select(-tmp) %>%  
+    arrange(rep, trial, a, method, id,   rob)
+
+ 
+df2  %>% ggplot( aes(x = rob)) +
+    facet_grid(cols = vars(a)) +
+        geom_density( adjust = 3,  color = "red") +
+        geom_histogram(aes(y = ..density..),
+                 position = "identity",
+                 alpha = 0.5) +
+                labs(title = "proportion of membership for alpha = (0.0 ,  0.1 , 0.2)",
+                    x = "proportion of membership",
+                    y = "Percentage") 
+ 
+```
+ 
